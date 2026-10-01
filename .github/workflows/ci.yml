@@ -1,0 +1,25 @@
+name: Rust HA verification
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --check
+      - run: cargo test --all-targets
+      - run: cargo clippy --all-targets -- -D warnings
+      - name: Three-node chaos test
+        run: bash scripts/chaos-test.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chaos-logs
+          path: chaos-artifacts/
