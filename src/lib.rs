@@ -20,7 +20,10 @@ pub struct HttpResponse {
 }
 
 pub fn now_nanos() -> u128 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos()
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos()
 }
 
 fn header_end(buf: &[u8]) -> Option<usize> {
@@ -34,44 +37,74 @@ pub fn read_request(stream: &mut TcpStream) -> io::Result<HttpRequest> {
     let end = loop {
         let n = stream.read(&mut tmp)?;
         if n == 0 {
-            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "connection closed"));
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "connection closed",
+            ));
         }
         buf.extend_from_slice(&tmp[..n]);
         if let Some(i) = header_end(&buf) {
             break i;
         }
         if buf.len() > 64 * 1024 {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "request headers too large"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "request headers too large",
+            ));
         }
     };
 
     let headers = String::from_utf8_lossy(&buf[..end]);
     let mut lines = headers.lines();
-    let first = lines.next().ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "missing request line"))?;
+    let first = lines
+        .next()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "missing request line"))?;
     let mut parts = first.split_whitespace();
     let method = parts.next().unwrap_or_default().to_string();
     let path = parts.next().unwrap_or_default().to_string();
     let content_length = lines
         .find_map(|line| {
             let (k, v) = line.split_once(':')?;
-            if k.eq_ignore_ascii_case("content-length") { v.trim().parse::<usize>().ok() } else { None }
+            if k.eq_ignore_ascii_case("content-length") {
+                v.trim().parse::<usize>().ok()
+            } else {
+                None
+            }
         })
         .unwrap_or(0);
 
     let body_start = end + 4;
     while buf.len() < body_start + content_length {
         let n = stream.read(&mut tmp)?;
-        if n == 0 { break; }
+        if n == 0 {
+            break;
+        }
         buf.extend_from_slice(&tmp[..n]);
     }
     let body_end = (body_start + content_length).min(buf.len());
-    Ok(HttpRequest { method, path, body: buf[body_start..body_end].to_vec() })
+    Ok(HttpRequest {
+        method,
+        path,
+        body: buf[body_start..body_end].to_vec(),
+    })
 }
 
-pub fn write_response(stream: &mut TcpStream, status: u16, body: &[u8], content_type: &str) -> io::Result<()> {
+pub fn write_response(
+    stream: &mut TcpStream,
+    status: u16,
+    body: &[u8],
+    content_type: &str,
+) -> io::Result<()> {
     let reason = match status {
-        200 => "OK", 201 => "Created", 204 => "No Content", 400 => "Bad Request", 404 => "Not Found",
-        405 => "Method Not Allowed", 409 => "Conflict", 503 => "Service Unavailable", _ => "Error",
+        200 => "OK",
+        201 => "Created",
+        204 => "No Content",
+        400 => "Bad Request",
+        404 => "Not Found",
+        405 => "Method Not Allowed",
+        409 => "Conflict",
+        503 => "Service Unavailable",
+        _ => "Error",
     };
     let head = format!(
         "HTTP/1.1 {status} {reason}\r\nContent-Length: {}\r\nContent-Type: {content_type}\r\nConnection: close\r\n\r\n",
@@ -83,7 +116,9 @@ pub fn write_response(stream: &mut TcpStream, status: u16, body: &[u8], content_
 }
 
 pub fn send_http(addr: &str, method: &str, path: &str, body: &[u8]) -> io::Result<HttpResponse> {
-    let socket: SocketAddr = addr.parse().map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid backend address"))?;
+    let socket: SocketAddr = addr
+        .parse()
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid backend address"))?;
     let mut stream = TcpStream::connect_timeout(&socket, Duration::from_millis(350))?;
     stream.set_read_timeout(Some(Duration::from_millis(700)))?;
     stream.set_write_timeout(Some(Duration::from_millis(700)))?;
@@ -97,14 +132,27 @@ pub fn send_http(addr: &str, method: &str, path: &str, body: &[u8]) -> io::Resul
 
     let mut buf = Vec::new();
     stream.read_to_end(&mut buf)?;
-    let end = header_end(&buf).ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid HTTP response"))?;
+    let end = header_end(&buf)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "invalid HTTP response"))?;
     let head = String::from_utf8_lossy(&buf[..end]);
-    let status = head.lines().next().and_then(|l| l.split_whitespace().nth(1)).and_then(|s| s.parse().ok()).unwrap_or(500);
-    Ok(HttpResponse { status, body: buf[end + 4..].to_vec() })
+    let status = head
+        .lines()
+        .next()
+        .and_then(|l| l.split_whitespace().nth(1))
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(500);
+    Ok(HttpResponse {
+        status,
+        body: buf[end + 4..].to_vec(),
+    })
 }
 
 pub fn valid_key(key: &str) -> bool {
-    !key.is_empty() && key.len() <= 128 && key.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
+    !key.is_empty()
+        && key.len() <= 128
+        && key
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
 }
 
 pub fn hex_encode(bytes: &[u8]) -> String {
@@ -112,8 +160,13 @@ pub fn hex_encode(bytes: &[u8]) -> String {
 }
 
 pub fn hex_decode(input: &str) -> Option<Vec<u8>> {
-    if !input.len().is_multiple_of(2) { return None; }
-    (0..input.len()).step_by(2).map(|i| u8::from_str_radix(&input[i..i+2], 16).ok()).collect()
+    if !input.len().is_multiple_of(2) {
+        return None;
+    }
+    (0..input.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&input[i..i + 2], 16).ok())
+        .collect()
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -129,7 +182,12 @@ impl Record {
     }
 
     pub fn encode_line(&self, key: &str) -> String {
-        format!("{key}\t{}\t{}\t{}\n", self.clock, self.origin, hex_encode(&self.value))
+        format!(
+            "{key}\t{}\t{}\t{}\n",
+            self.clock,
+            self.origin,
+            hex_encode(&self.value)
+        )
     }
 }
 
@@ -139,7 +197,14 @@ pub fn parse_record_line(line: &str) -> Option<(String, Record)> {
     let clock = p.next()?.parse::<u128>().ok()?;
     let origin = p.next()?.to_string();
     let value = hex_decode(p.next()?)?;
-    Some((key, Record { clock, origin, value }))
+    Some((
+        key,
+        Record {
+            clock,
+            origin,
+            value,
+        },
+    ))
 }
 
 pub struct Store {
@@ -157,20 +222,30 @@ impl Store {
                 if let Some((key, record)) = parse_record_line(line) {
                     match records.get(&key) {
                         Some(existing) if !record.newer_than(existing) => {}
-                        _ => { records.insert(key, record); }
+                        _ => {
+                            records.insert(key, record);
+                        }
                     }
                 }
             }
         }
-        Ok(Self { records: Mutex::new(records), wal })
+        Ok(Self {
+            records: Mutex::new(records),
+            wal,
+        })
     }
 
     pub fn apply(&self, key: String, record: Record) -> io::Result<bool> {
         let mut map = self.records.lock().expect("store mutex poisoned");
         let should_apply = map.get(&key).map(|r| record.newer_than(r)).unwrap_or(true);
-        if !should_apply { return Ok(false); }
+        if !should_apply {
+            return Ok(false);
+        }
         let line = record.encode_line(&key);
-        let mut file = OpenOptions::new().create(true).append(true).open(&self.wal)?;
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.wal)?;
         file.write_all(line.as_bytes())?;
         file.sync_data()?;
         map.insert(key, record);
@@ -178,7 +253,11 @@ impl Store {
     }
 
     pub fn get(&self, key: &str) -> Option<Record> {
-        self.records.lock().expect("store mutex poisoned").get(key).cloned()
+        self.records
+            .lock()
+            .expect("store mutex poisoned")
+            .get(key)
+            .cloned()
     }
 
     pub fn snapshot(&self) -> String {
@@ -192,7 +271,9 @@ impl Store {
         let mut applied = 0;
         for line in snapshot.lines() {
             if let Some((key, record)) = parse_record_line(line) {
-                if self.apply(key, record)? { applied += 1; }
+                if self.apply(key, record)? {
+                    applied += 1;
+                }
             }
         }
         Ok(applied)
@@ -211,8 +292,16 @@ mod tests {
 
     #[test]
     fn newer_version_wins() {
-        let a = Record { clock: 10, origin: "n1".into(), value: b"a".to_vec() };
-        let b = Record { clock: 11, origin: "n0".into(), value: b"b".to_vec() };
+        let a = Record {
+            clock: 10,
+            origin: "n1".into(),
+            value: b"a".to_vec(),
+        };
+        let b = Record {
+            clock: 11,
+            origin: "n0".into(),
+            value: b"b".to_vec(),
+        };
         assert!(b.newer_than(&a));
     }
 }
