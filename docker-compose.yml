@@ -1,0 +1,43 @@
+services:
+  node1:
+    build: .
+    command: aegis-node
+    environment:
+      NODE_ID: node1
+      BIND: 0.0.0.0:9101
+      PEERS: node2:9102,node3:9103
+      CLUSTER_SIZE: 3
+      STATE_DIR: /data
+    volumes: [node1:/data]
+  node2:
+    build: .
+    command: aegis-node
+    environment:
+      NODE_ID: node2
+      BIND: 0.0.0.0:9102
+      PEERS: node1:9101,node3:9103
+      CLUSTER_SIZE: 3
+      STATE_DIR: /data
+    volumes: [node2:/data]
+  node3:
+    build: .
+    command: aegis-node
+    environment:
+      NODE_ID: node3
+      BIND: 0.0.0.0:9103
+      PEERS: node1:9101,node2:9102
+      CLUSTER_SIZE: 3
+      STATE_DIR: /data
+    volumes: [node3:/data]
+  gateway:
+    build: .
+    command: aegis-gateway
+    environment:
+      BIND: 0.0.0.0:8080
+      BACKENDS: node1:9101,node2:9102,node3:9103
+    ports: ["8080:8080"]
+    depends_on: [node1,node2,node3]
+volumes:
+  node1: {}
+  node2: {}
+  node3: {}
