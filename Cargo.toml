@@ -1,0 +1,18 @@
+[package]
+name = "aegismesh"
+version = "0.1.0"
+edition = "2021"
+description = "Dependency-free Rust HA service with quorum writes, WAL persistence, catch-up, and chaos tests"
+license = "MIT"
+
+[lib]
+name = "aegismesh"
+path = "src/lib.rs"
+
+[[bin]]
+name = "aegis-node"
+path = "src/bin/node.rs"
+
+[[bin]]
+name = "aegis-gateway"
+path = "src/bin/gateway.rs"
