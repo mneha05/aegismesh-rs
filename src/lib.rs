@@ -112,7 +112,7 @@ pub fn hex_encode(bytes: &[u8]) -> String {
 }
 
 pub fn hex_decode(input: &str) -> Option<Vec<u8>> {
-    if input.len() % 2 != 0 { return None; }
+    if !input.len().is_multiple_of(2) { return None; }
     (0..input.len()).step_by(2).map(|i| u8::from_str_radix(&input[i..i+2], 16).ok()).collect()
 }
 
