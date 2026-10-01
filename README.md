@@ -1,5 +1,7 @@
 # AegisMesh
 
+[![Rust HA verification](https://github.com/mneha05/aegismesh-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/mneha05/aegismesh-rs/actions/workflows/ci.yml)
+
 **A dependency-free Rust high-availability service lab with quorum writes, WAL persistence, replica catch-up, retrying traffic routing, and automated chaos verification.**
 
 AegisMesh exists to make two claims concrete rather than keyword-level:
@@ -59,6 +61,23 @@ The GitHub Actions chaos test launches **three independent Rust node processes p
 ```
 
 That distinguishes **availability** from **unsafe acceptance of writes**: one replica failure preserves read/write service; loss of quorum preserves reads but refuses new commits.
+
+## Verified failure run
+
+GitHub Actions run [#36943187706](https://github.com/mneha05/aegismesh-rs/actions/runs/36943187706) passed the strict Rust quality gates and the multi-process chaos test.
+
+```text
+AegisMesh chaos verification passed:
+  3-node cluster started
+  1 replica killed: 100/100 gateway reads succeeded
+  quorum write succeeded with 2/3 nodes
+  restarted replica caught up missed write
+  1/3-node write correctly rejected with HTTP 503
+```
+
+The same run passed `cargo fmt --check`, `cargo test --all-targets`, and `cargo clippy --all-targets -- -D warnings`, and uploaded the node/gateway failure logs as a CI artifact.
+
+This is evidence of **running and failure-testing a replicated service**, but it is deliberately not described as production uptime, an SLA, or professional on-call ownership.
 
 ## Rust implementation
 
